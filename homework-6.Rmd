@@ -1,6 +1,7 @@
 ---
 title: "Homework 6"
-author: "PSTAT 131/231"
+author: "PSTAT 231"
+date: '2022-11-27'
 output:
     html_document:
       toc: true
@@ -211,7 +212,7 @@ class_rf_spec <- rf_spec %>%
 class_rf_wf <- workflow() %>% 
   add_model(class_rf_spec %>% set_args(mtry = tune(), trees = tune(), min_n = tune())) %>% 
   add_recipe(pokemon_recipe)
-param_rf_grid <- grid_regular(mtry(range = c(1, 8)), trees(range = c(50, 2150)), min_n(range = c(2, 16)), levels = 8)
+param_rf_grid <- grid_regular(mtry(range = c(1, 8)), trees(range = c(10, 2000)), min_n(range = c(2, 16)), levels = 8)
 ```
 
 Each of these hyperparameters represent:
@@ -221,7 +222,7 @@ Each of these hyperparameters represent:
 
 I choose the following values for each of the hyperparameter:
 - `mtry`: Range from 1 to 8 (adds 1 for every level)
-- `trees`: Range from 50 to 2150 (adds 300 for every level)
+- `trees`: Range from 10 to 2000 (adds 284 approximately for every level)
 - `min_n`: Range from 2 to 16 (adds 2 for every level). Here I only did up to 16 because we have a small data set.
 
 We know that `mtry` should not be smaller than 1 because at the very least we should select one of the predictors in the tree model. If we set it to be less than one none of the predictor will be chosen and that would be a mistake. Also, `mtry` not be larger than 8 because we only have 8 predictors in our model and there is no possible way of us to choose more than that. Finally, `mtry = 8` represent a bagging model as the `mtry` is equal to the number of predictors in this random forest.
@@ -260,9 +261,9 @@ autoplot(tune_rf_saved)
 The plot shows the expected results. This is:
 - For `mtry`, it shows that the ROC-AUC is very low for small values of it but when we use all of them as in a bagging model, it is also small. We need a balance as we don't want to be in the extremes and the plot suggest that `mtry = 2` yields the best performance overall all the models accounting for the values of the other two hyperparameters (`trees` and `min_n`)
 
-- For `trees` we know that we want enough of them so that we can have a stable error but we don't want to have too many as it would be inefficient and would harm our estimations. The plot clearly shows that having way too little trees (less than a 100) or way too much (more than 350) impacts the results and yields lower ROC-AUC. In this case, the plot suggest that having `trees = 1850` yields the best performance overall all the models accounting for the values of the other two hyperparameters (`mtry` and `min_n`)
+- For `trees` we know that we want enough of them so that we can have a stable error but we don't want to have too many as it would be inefficient and would harm our estimations. The plot clearly shows that having way too little trees (less than a 100) or way too much (more than 350) impacts the results and yields lower ROC-AUC. In this case, the plot suggest that having `trees = 1431` yields the best performance overall all the models accounting for the values of the other two hyperparameters (`mtry` and `min_n`)
 
-- For `min_n` we know that a small number of observations in the node to split would produce a deeper and more complex trees which would potentially overfit the data, but having too many observations in the node would create a smalle tree that could be bias and not useful at all. So for this hyperparameter we also need a value in the middle. The plot shows that for really high levels (more than 6), the model is not very good and predicts lower values of ROC across all the models estimated. Therefore, `min_n = 2` yields the best performance overall all the models accounting for the values of the other two hyperparameters (`mtry` and `trees`)
+- For `min_n` we know that a small number of observations in the node to split would produce a deeper and more complex trees which would potentially overfit the data, but having too many observations in the node would create a smalle tree that could be bias and not useful at all. So for this hyperparameter we also need a value in the middle. The plot shows that for really high levels (more than 6), the model is not very good and predicts lower values of ROC across all the models estimated. Therefore, `min_n = 4` yields the best performance overall all the models accounting for the values of the other two hyperparameters (`mtry` and `trees`)
 
 
 ### Exercise 7
@@ -277,7 +278,7 @@ Following the previous labs and homeworks:
 collect_metrics(tune_rf_saved) %>% arrange(-mean)
 ```
 
-The `roc_auc` of my best-performing random forest model on the folds is 0.7253002.
+The `roc_auc` of my best-performing random forest model on the folds is 0.7250998.
 
 ### Exercise 8
 
@@ -373,7 +374,7 @@ Which classes was your model most accurate at predicting? Which was it worst at?
 
 ```{r}
 model <- c("Pruned tree","Random Forest","Boosted tree")
-roc_auc_model <- c( 0.6287888, 0.7253002, 0.6991073)
+roc_auc_model <- c( 0.6287888, 0.7250998, 0.6991073)
 tibble(model, roc_auc_model)
 ```
 
@@ -406,7 +407,7 @@ evaluate %>% conf_mat(truth = type_1, estimate = .pred_class) %>%
   autoplot(type = "heatmap")
 ```
 
-The best-performing model is the random forest with `mtry = 2`, `trees = 1850`, and `min_n = 2`. It has an AUC value of 0.9999008 which is very high and indicates the model did a very good job.
+The best-performing model is the random forest with `mtry = 2`, `trees = 1431`, and `min_n = 4`. It has an AUC value of 0.9999008 which is very high and indicates the model did a very good job.
 
 The ROC curves also indicate that the model was very good in the prediction and the confusion matrix shows that almost every single pokemon was properly classified except for one. This implies the model was very accurate (perfect indeed) at predicting every single class except for Fire which was the worst with one misclassied pokemon.
 
@@ -443,11 +444,72 @@ abalone_recipe <- recipe(age ~ ., data = abalone_train) %>%
                   shucked_weight:shell_weight) %>% # Interaction between `shucked_weight` and `shell_weight` (step 2)
   step_normalize(all_predictors()) # Center and scale (steps 3 and 4)
 
-# Use *v*-fold cross-validation on the training set with 5 folds
-pokemon_folds <- vfold_cv(pokemon_train, strata = type_1, v = 5)
-pokemon_folds
+# Use *v*-fold cross-validation on the training set with 10 folds (stratified by age)
+abalone_folds <- vfold_cv(abalone_train, strata = age, v = 10)
+abalone_folds
 
+# Set Random Forest model and regular grid (same ranges and levels as before)
+abalone_spec <- rand_forest() %>%
+  set_engine("ranger", importance = "impurity") %>%
+  set_mode("regression")
+abalone_wf <- workflow() %>% 
+  add_model(abalone_spec %>% set_args(mtry = tune(), trees = tune(), min_n = tune())) %>% 
+  add_recipe(abalone_recipe)
+abalone_grid <- grid_regular(mtry(range = c(1, 8)), trees(range = c(10, 2000)), min_n(range = c(2, 80)), levels = 8)
 
 ```
 
+*Note: Given that the sample size of the abalone data is bigger than the pokemon one. I decided to try a different range for min_n to allow for more observations*
+
+
+Now we can tune the model and save it:
+
+```{r, eval=FALSE}
+# Tune the results
+abalone_rf <- tune_grid(
+  abalone_wf, 
+  resamples = abalone_folds, 
+  grid = abalone_grid
+)
+
+# Save the results
+saveRDS(abalone_rf, file="abalone_rf_data.RData")
+```
+
+Now we need to save the results as it takes a lot of time to run:
+
+```{r}
+abalone_rf_saved <- readRDS("abalone_rf_data.RData")
+```
+
+Now we can do the autoplot:
+```{r}
+autoplot(abalone_rf_saved)
+```
+As expected, the RMSE reduces with the number of trees but the other two hyperparameters do not yield big differences. Finally, we can organize the metrics to find the best-performing random forest model which suggest that the model with `mtry = 4`, `trees = 294`, and `min_n = 35` is the best one as it produces the smalles RMSE. 
+
+```{r}
+collect_metrics(abalone_rf_saved) %>% filter(.metric == "rmse") %>% arrange(mean)
+```
+
+Now we can select the best model and fit it in the testing set:
+
+```{r}
+# Select best model
+best_abalone <- select_best(abalone_rf_saved, metric = "rmse")
+best_abalone
+
+# Fit the selected model
+best_abalone_final <- finalize_workflow(abalone_wf, best_abalone)
+best_abalone_fit <- fit(best_abalone_final, data = abalone_test)
+
+# Evaluate its performance on the testing set
+evaluate_abalone <- augment(best_abalone_fit, new_data = abalone_test) %>% 
+  select(age, starts_with(".pred"))
+
+# Print the AUC on the testing set
+evaluate_abalone %>% rmse(age, .pred)
+```
+
+The RMSE in the testing is 1.731289 which is smaller than the one obtained in the training set (2.137555). This means that the model does a good out of sample prediction.
 
